@@ -1,5 +1,7 @@
 package com.mindblock.main;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 import com.mindblock.tools.Coordinate;
@@ -9,7 +11,7 @@ public class Maze {
 
 	private int width, height;
 	private Coordinate start, treasure1, treasure2, treasure3, enemy;
-	private static final double DOOR_GENERATION_PROBABILITY = 0.70;
+	private static final double DOOR_GENERATION_PROBABILITY = 0.75;
 
 	public Maze(int size){
 		this.width = size;
@@ -26,7 +28,7 @@ public class Maze {
 		do {
 			this.addStartAndTreasures(maze);
 		} while(this.calculatePathLength() != difficulty);
-		
+
 		this.setArtifactsInMaze(maze);
 
 		for (int x = 0; x < maze.length; x++){
@@ -40,7 +42,7 @@ public class Maze {
 
 				if(maze[y][x].isStartRoom())
 					System.out.print("[S"+ l + "" + u + "" + d + "" + r + "S]");
-				else if(maze[x][y].hasTreasure())
+				else if(maze[y][x].hasTreasure())
 					System.out.print("[T"+ l + "" + u + "" + d + "" + r + "T]");
 				else if(maze[y][x].hasEnemy())
 					System.out.print("[E"+ l + "" + u + "" + d + "" + r + "E]");
@@ -100,6 +102,10 @@ public class Maze {
 		if (room.getY() < maze[0].length-1){
 			maze[room.getX()][room.getY()].setDownRoom(r.nextDouble() < DOOR_GENERATION_PROBABILITY);
 		}
+
+		//Make sure the room has at least 1 door:
+		if (!maze[room.getX()][room.getY()].hasAnyDoors())
+			this.addInitialDoors(maze, room);
 	}
 
 
@@ -164,10 +170,10 @@ public class Maze {
 
 		//start to enemy
 		path -= this.manhattenDistance(start, enemy);
-		
+
 		//size of maze
 		path += this.width;
-		
+
 		return path;
 	}
 
@@ -176,54 +182,50 @@ public class Maze {
 		int x = 0;
 		int y = 0;
 
-		//start
+		//enemy and start
 		do {
 			x = r.nextInt(maze.length);
 			y = r.nextInt(maze[0].length);
-			this.start = new Coordinate(y, x);
-		} while (!maze[this.start.getX()][this.start.getY()].hasAnyDoors());
-		
+			int x2 = r.nextInt(maze.length);
+			int y2 = r.nextInt(maze[0].length); 
+			this.enemy = new Coordinate(y, x);
+			this.start = new Coordinate(y2, x2);
+		} while (this.isSameCoordinate(this.start, this.enemy)
+				|| this.manhattenDistance(this.start, this.enemy) < (int) ((double) 3*(this.height-1)/2)
+				|| !this.canReachStart(enemy, start,maze, new ArrayList<Coordinate>()));
+
 		//treasure 1
 		do {
 			x = r.nextInt(maze.length);
 			y = r.nextInt(maze[0].length);
 			this.treasure1 = new Coordinate(y, x);
-		} while (!maze[this.treasure1.getX()][this.treasure1.getY()].hasAnyDoors() 
-				|| this.isSameCoordinate(this.start, this.treasure1));
-		
+		} while (this.isSameCoordinate(this.start, this.treasure1)
+				|| !this.canReachStart(treasure1, start, maze, new ArrayList<Coordinate>()));
+
 
 		//treasure 2
 		do {
 			x = r.nextInt(maze.length);
 			y = r.nextInt(maze[0].length);
 			this.treasure2 = new Coordinate(y, x);
-		} while (!maze[this.treasure2.getX()][this.treasure2.getY()].hasAnyDoors() 
-				|| this.isSameCoordinate(this.start, this.treasure2)
-				|| this.isSameCoordinate(this.treasure1, this.treasure2));
+		} while (this.isSameCoordinate(this.start, this.treasure2)
+				|| this.isSameCoordinate(this.treasure1, this.treasure2)
+				|| !this.canReachStart(treasure2, start, maze, new ArrayList<Coordinate>()));
 
 		//treasure 3
 		do {
 			x = r.nextInt(maze.length);
 			y = r.nextInt(maze[0].length);
 			this.treasure3 = new Coordinate(y, x);
-		} while (!maze[this.treasure3.getX()][this.treasure3.getY()].hasAnyDoors() 
-				|| this.isSameCoordinate(this.start, this.treasure3)
+		} while (this.isSameCoordinate(this.start, this.treasure3)
 				|| this.isSameCoordinate(this.treasure1, this.treasure3)
-				|| this.isSameCoordinate(this.treasure2, this.treasure3));
-		
-		//enemy
-		do {
-			x = r.nextInt(maze.length);
-			y = r.nextInt(maze[0].length);
-			this.enemy = new Coordinate(y, x);
-		} while (!maze[this.enemy.getX()][this.enemy.getY()].hasAnyDoors() 
-				|| this.isSameCoordinate(this.start, this.enemy)
-				|| this.manhattenDistance(this.start, this.enemy) < (int) ((double) this.height/2));
+				|| this.isSameCoordinate(this.treasure2, this.treasure3)
+				|| !this.canReachStart(treasure3, start, maze, new ArrayList<Coordinate>()));
 	}
-	
-	
+
+
 	private void setArtifactsInMaze(Room[][] maze){
-		
+
 		maze[this.start.getX()][start.getY()].setIsStartRoom();
 		maze[this.treasure1.getX()][treasure1.getY()].setHasTreasure();
 		maze[this.treasure2.getX()][treasure2.getY()].setHasTreasure();
@@ -234,8 +236,44 @@ public class Maze {
 	private boolean isSameCoordinate(Coordinate a, Coordinate b){
 		return (a.getX() == b.getX() && a.getY() == b.getY());
 	}
+	
+	private boolean listContainsCoordinate(Coordinate c, List<Coordinate> list){
+		for (Coordinate cl : list){
+			if (this.isSameCoordinate(c, cl))
+				return true;
+		}
+		return false;
+	}
 
 	private int manhattenDistance(Coordinate a, Coordinate b){
 		return (Math.abs(a.getX() - b.getX()) + Math.abs(a.getY() - b.getY()));
+	}
+	
+	private boolean canReachStart(Coordinate c, Coordinate g, Room[][] maze, List<Coordinate> visited){
+		
+		Room room = maze[c.getX()][c.getY()];
+		visited.add(c);
+		
+		if (this.isSameCoordinate(c, g))
+			return true;
+		else {
+			//Up
+			if (room.getUpRoom() && !this.listContainsCoordinate(new Coordinate(c.getX(), c.getY()-1), visited))
+				if (this.canReachStart(new Coordinate(c.getX(), c.getY()-1), g, maze, visited))
+					return true;
+			//Down
+			if (room.getDownRoom() && !this.listContainsCoordinate(new Coordinate(c.getX(), c.getY()+1), visited))
+				if (this.canReachStart(new Coordinate(c.getX(), c.getY()+1), g, maze, visited))
+					return true;
+			//Left
+			if (room.getLeftRoom() && !this.listContainsCoordinate(new Coordinate(c.getX()-1, c.getY()), visited))
+				if (this.canReachStart(new Coordinate(c.getX()-1, c.getY()), g, maze, visited))
+					return true;
+			//Right
+			if (room.getRightRoom() && !this.listContainsCoordinate(new Coordinate(c.getX()+1, c.getY()), visited))
+				if (this.canReachStart(new Coordinate(c.getX()+1, c.getY()), g, maze, visited))
+					return true;
+		}
+		return false;
 	}
 }
